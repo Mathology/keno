@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Keno Simulator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+    background: #0f1117; color: #e8e6e0;
+    min-height: 100vh; padding: 16px;
+  }
+  h1 { font-size: 17px; font-weight: 600; margin-bottom: 2px; }
+  .subtitle { font-size: 12px; color: #6b6a65; margin-bottom: 14px; }
+  .section-label { font-size: 10px; color: #6b6a65; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; }
+
+  /* State selector */
+  .state-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  select {
+    background: #1c1e26; color: #e8e6e0;
+    border: 0.5px solid #2e2f38; border-radius: 8px;
+    padding: 7px 12px; font-size: 14px; font-weight: 500;
+    cursor: pointer; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b6a65' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 10px center;
+    padding-right: 28px;
+  }
+  .ev-badge {
+    font-size: 11px; background: #1c1e26; border: 0.5px solid #2e2f38;
+    border-radius: 6px; padding: 4px 9px; color: #6b6a65;
+  }
+  .ev-badge span { color: #e05252; font-weight: 600; }
+
+  /* Spot selector */
+  .spot-grid { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 12px; }
+  .spot-btn {
+    padding: 7px 11px; border-radius: 8px; border: 0.5px solid #2e2f38;
+    background: #1c1e26; color: #e8e6e0; font-size: 13px;
+    font-weight: 500; cursor: pointer; min-width: 36px; text-align: center;
+  }
+  .spot-btn.active { border: 2px solid #378ADD; color: #378ADD; }
+  .spot-btn:disabled { opacity: 0.3; cursor: default; }
+
+  /* Trial selector */
+  .trial-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .trial-btns { display: flex; gap: 5px; }
+  .trial-btn {
+    padding: 5px 11px; border-radius: 8px; border: 0.5px solid #2e2f38;
+    background: #1c1e26; color: #e8e6e0; font-size: 12px; font-weight: 500; cursor: pointer;
+  }
+  .trial-btn.active { border: 2px solid #378ADD; color: #378ADD; }
+  .sigma { font-size: 11px; color: #6b6a65; }
+
+  /* Stats */
+  .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; margin-bottom: 7px; }
+  .stats-bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 12px; }
+  .stat-card { background: #1c1e26; border-radius: 10px; padding: 9px 11px; border: 0.5px solid #2e2f38; }
+  .stat-label { font-size: 10px; color: #6b6a65; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .stat-value { font-size: 18px; font-weight: 600; color: #e8e6e0; font-variant-numeric: tabular-nums; }
+  .positive { color: #34c97e !important; }
+  .negative { color: #e05252 !important; }
+
+  /* Buttons */
+  .buttons { display: flex; gap: 10px; margin-bottom: 12px; }
+  .buttons button {
+    flex: 1; padding: 12px; border-radius: 10px; border: none;
+    font-size: 15px; font-weight: 600; cursor: pointer; transition: opacity 0.15s;
+  }
+  .buttons button:active { opacity: 0.7; }
+  #btn-start { background: #378ADD; color: #fff; }
+  #btn-start:disabled { background: #243a52; color: #4a6a88; }
+  #btn-reset { background: #1c1e26; color: #e8e6e0; border: 0.5px solid #2e2f38 !important; }
+
+  /* Chart */
+  .chart-wrap {
+    width: 100%; height: 220px; background: #1c1e26;
+    border-radius: 12px; border: 0.5px solid #2e2f38;
+    padding: 10px; margin-bottom: 10px;
+  }
+
+  /* Legend */
+  .legend { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: #6b6a65; margin-bottom: 10px; }
+  .legend-row { display: flex; align-items: center; gap: 6px; }
+  .legend-line { width: 20px; height: 2px; flex-shrink: 0; }
+  .legend-line.solid { background: #378ADD; }
+  .legend-line.dashed-green { background: repeating-linear-gradient(to right,#34c97e 0,#34c97e 5px,transparent 5px,transparent 9px); }
+  .legend-line.dashed-amber { background: repeating-linear-gradient(to right,#c49a2a 0,#c49a2a 5px,transparent 5px,transparent 9px); }
+
+  /* Payout table */
+  .payout-wrap { background: #1c1e26; border-radius: 10px; border: 0.5px solid #2e2f38; padding: 10px 12px; }
+  .payout-title { font-size: 10px; color: #6b6a65; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 7px; }
+  .payout-row { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 0; border-bottom: 0.5px solid #2e2f38; }
+  .payout-row:last-child { border-bottom: none; }
+  .payout-match { color: #6b6a65; }
+  .payout-prize { font-weight: 600; }
+  .payout-prize.win { color: #34c97e; }
+  .payout-prize.lose { color: #e05252; }
+</style>
+</head>
+<body>
+
+<h1>Keno Simulator</h1>
+<p class="subtitle">80 balls · 20 drawn · $1 bet · animates in 30 seconds</p>
+
+<!-- State selector -->
+<div class="state-row">
+  <div>
+    <div class="section-label">State</div>
+    <select id="state-select" onchange="setState(this.value)">
+      <option value="VA" selected>Virginia (VA)</option>
+      <option value="MA">Massachusetts (MA)</option>
+      <option value="RI">Rhode Island (RI)</option>
+      <option value="CT">Connecticut (CT)</option>
+      <option value="MD">Maryland (MD)</option>
+      <option value="DC">Washington DC</option>
+      <option value="NC">North Carolina (NC)</option>
+      <option value="GA">Georgia (GA)</option>
+      <option value="OH">Ohio (OH)</option>
+      <option value="KY">Kentucky (KY)</option>
+      <option value="WV">West Virginia (WV)</option>
+    </select>
+  </div>
+  <div style="padding-top:14px;">
+    <span class="ev-badge">E(X) = <span id="ev-label">−$0.306</span></span>
+  </div>
+</div>
+
+<!-- Spot selector -->
+<div class="section-label">Spot game</div>
+<div class="spot-grid" id="spot-grid"></div>
+
+<!-- Trial selector -->
+<div class="trial-row">
+  <span class="section-label" style="margin:0;">Trials:</span>
+  <div class="trial-btns">
+    <button class="trial-btn" onclick="setTrials(500,this)">500</button>
+    <button class="trial-btn active" onclick="setTrials(1000,this)">1,000</button>
+    <button class="trial-btn" onclick="setTrials(2500,this)">2,500</button>
+    <button class="trial-btn" onclick="setTrials(5000,this)">5,000</button>
+  </div>
+  <span class="sigma" id="sigma-label">σ ≈ $0.062</span>
+</div>
+
+<!-- Stats -->
+<div class="stats">
+  <div class="stat-card"><div class="stat-label">Trial</div><div class="stat-value" id="stat-trial">0</div></div>
+  <div class="stat-card"><div class="stat-label">Running total</div><div class="stat-value" id="stat-total">$0</div></div>
+  <div class="stat-card"><div class="stat-label">Last result</div><div class="stat-value" id="stat-last">—</div></div>
+</div>
+<div class="stats-bottom">
+  <div class="stat-card"><div class="stat-label">Avg win/loss</div><div class="stat-value" id="stat-avg">$0.00</div></div>
+  <div class="stat-card"><div class="stat-label">Last above $0</div><div class="stat-value" id="stat-green">—</div></div>
+</div>
+
+<!-- Buttons -->
+<div class="buttons">
+  <button id="btn-start" onclick="startSim()">▶ Start</button>
+  <button id="btn-reset" onclick="resetSim()">↺ Reset</button>
+</div>
+
+<!-- Chart -->
+<div class="chart-wrap"><canvas id="kenoChart"></canvas></div>
+
+<!-- Legend -->
+<div class="legend">
+  <div class="legend-row"><span class="legend-line solid"></span> Average win/loss per trial</div>
+  <div class="legend-row"><span class="legend-line dashed-green"></span> Expected value</div>
+  <div class="legend-row"><span class="legend-line dashed-amber"></span> Break-even ($0.00)</div>
+</div>
+
+<!-- Payout table -->
+<div class="payout-wrap">
+  <div class="payout-title" id="payout-title">Payouts</div>
+  <div id="payout-rows"></div>
+</div>
+
+<script>
+// All payout tables: [matches, total_payout_including_$1_stake]
+const STATES = {
+  VA: {
+    name: 'Virginia',
+    games: {
+      1:[[1,3]],
+      2:[[2,12]],
+      3:[[3,30],[2,2]],
+      4:[[4,100],[3,5],[2,1]],
+      5:[[5,450],[4,20],[3,2]],
+      6:[[6,1000],[5,50],[4,5],[3,1],[0,1]],
+      7:[[7,2500],[6,100],[5,15],[4,3],[3,1],[0,1]],
+      8:[[8,10000],[7,250],[6,50],[5,15],[4,2],[0,1]],
+      9:[[9,50000],[8,2000],[7,100],[6,20],[5,5],[4,2],[0,1]],
+      10:[[10,100000],[9,5000],[8,500],[7,50],[6,10],[5,3],[4,1],[0,2]]
+    }
+  },
+  MA: {
+    name: 'Massachusetts',
+    games: {
+      1:[[1,2.5]],
+      2:[[2,5],[1,1]],
+      3:[[3,25],[2,2.5]],
+      4:[[4,100],[3,4],[2,1]],
+      5:[[5,450],[4,20],[3,2]],
+      6:[[6,1600],[5,50],[4,7],[3,1]],
+      7:[[7,5000],[6,100],[5,20],[4,3],[3,1]],
+      8:[[8,15000],[7,1000],[6,50],[5,10],[4,2]],
+      9:[[9,40000],[8,4000],[7,200],[6,25],[5,5],[4,1]],
+      10:[[10,100000],[9,10000],[8,500],[7,80],[6,20],[5,2],[0,2]],
+      11:[[11,500000],[10,15000],[9,1500],[8,250],[7,50],[6,10],[5,1],[0,2]],
+      12:[[12,1000000],[11,25000],[10,2500],[9,1000],[8,150],[7,25],[6,5],[0,4]]
+    }
+  },
+  RI: {
+    name: 'Rhode Island',
+    games: {
+      1:[[1,2.5]],
+      2:[[2,11]],
+      3:[[3,27],[2,2]],
+      4:[[4,72],[3,5],[2,1]],
+      5:[[5,410],[4,18],[3,2]],
+      6:[[6,1200],[5,55],[4,7],[3,1]],
+      7:[[7,4500],[6,85],[5,17],[4,3],[3,1]],
+      8:[[8,10500],[7,650],[6,60],[5,12],[4,2]],
+      9:[[9,30000],[8,3000],[7,130],[6,25],[5,6],[4,1]],
+      10:[[10,100000],[9,4250],[8,450],[7,30],[6,15],[5,2],[0,5]]
+    }
+  },
+  CT: {
+    name: 'Connecticut',
+    games: {
+      1:[[1,2.5]],
+      2:[[2,11]],
+      3:[[3,27],[2,2]],
+      4:[[4,100],[3,3],[2,1]],
+      5:[[5,450],[4,16],[3,2]],
+      6:[[6,1300],[5,50],[4,7],[3,1]],
+      7:[[7,5000],[6,100],[5,20],[4,2],[3,1]],
+      8:[[8,10000],[7,500],[6,75],[5,10],[4,2]],
+      9:[[9,30000],[8,3000],[7,130],[6,25],[5,5],[0,2]],
+      10:[[10,100000],[9,5000],[8,500],[7,50],[6,15],[5,2],[0,4]]
+    }
+  },
+  MD: {
+    name: 'Maryland',
+    games: {
+      1:[[1,2]],
+      2:[[2,10]],
+      3:[[3,25],[2,2]],
+      4:[[4,50],[3,5],[2,1]],
+      5:[[5,300],[4,15],[3,2]],
+      6:[[6,1000],[5,50],[4,5],[3,1]],
+      7:[[7,2500],[6,100],[5,15],[4,3],[3,1]],
+      8:[[8,10000],[7,500],[6,50],[5,10],[4,2]],
+      9:[[9,25000],[8,2500],[7,100],[6,20],[5,5],[0,2]],
+      10:[[10,100000],[9,4000],[8,400],[7,50],[6,10],[5,2],[0,4]]
+    }
+  },
+  DC: {
+    name: 'Washington DC',
+    games: {
+      1:[[1,2.5]],
+      2:[[2,10]],
+      3:[[3,23],[2,2]],
+      4:[[4,65],[3,5],[2,1]],
+      5:[[5,400],[4,10],[3,3]],
+      6:[[6,1500],[5,53],[4,5],[3,1]],
+      7:[[7,5000],[6,150],[5,20],[4,2],[0,1]],
+      8:[[8,10000],[7,500],[6,50],[5,7],[4,1],[0,2]],
+      9:[[9,20000],[8,2000],[7,100],[6,15],[5,5],[4,1],[0,2]],
+      10:[[10,100000],[9,5000],[8,500],[7,46],[6,10],[5,2],[0,5]]
+    }
+  },
+  NC: {
+    name: 'North Carolina',
+    games: {
+      1:[[1,2]],
+      2:[[2,11]],
+      3:[[3,27],[2,2]],
+      4:[[4,75],[3,5],[2,1]],
+      5:[[5,420],[4,18],[3,2]],
+      6:[[6,1100],[5,50],[4,8],[3,1]],
+      7:[[7,4500],[6,100],[5,17],[4,3],[3,1]],
+      8:[[8,10000],[7,750],[6,50],[5,12],[4,2]],
+      9:[[9,30000],[8,3000],[7,150],[6,25],[5,6],[4,1]],
+      10:[[10,100000],[9,4250],[8,450],[7,40],[6,15],[5,2],[0,5]]
+    }
+  },
+  GA: {
+    name: 'Georgia',
+    games: {
+      1:[[1,2]],
+      2:[[2,10]],
+      3:[[3,25],[2,2]],
+      4:[[4,70],[3,5],[2,1]],
+      5:[[5,400],[4,17],[3,2]],
+      6:[[6,1200],[5,50],[4,7],[3,1]],
+      7:[[7,4000],[6,125],[5,15],[4,3],[3,1]],
+      8:[[8,10000],[7,500],[6,75],[5,10],[4,2]],
+      9:[[9,30000],[8,3000],[7,150],[6,25],[5,5],[4,1]],
+      10:[[10,100000],[9,5000],[8,500],[7,50],[6,10],[5,2],[0,5]]
+    }
+  },
+  OH: {
+    name: 'Ohio',
+    games: {
+      1:[[1,2]],
+      2:[[2,11]],
+      3:[[3,27],[2,2]],
+      4:[[4,72],[3,5],[2,1]],
+      5:[[5,410],[4,18],[3,2]],
+      6:[[6,1100],[5,57],[4,7],[3,1]],
+      7:[[7,2000],[6,100],[5,11],[4,5],[3,1]],
+      8:[[8,10000],[7,300],[6,50],[5,15],[4,2]],
+      9:[[9,25000],[8,2000],[7,100],[6,20],[5,5],[4,2]],
+      10:[[10,100000],[9,5000],[8,500],[7,50],[6,10],[5,2],[0,5]]
+    }
+  },
+  KY: {
+    name: 'Kentucky',
+    games: {
+      1:[[1,2]],
+      2:[[2,11]],
+      3:[[3,27],[2,2]],
+      4:[[4,72],[3,5],[2,1]],
+      5:[[5,410],[4,18],[3,2]],
+      6:[[6,1100],[5,57],[4,7],[3,1]],
+      7:[[7,2000],[6,100],[5,11],[4,5],[3,1]],
+      8:[[8,10000],[7,300],[6,50],[5,15],[4,2]],
+      9:[[9,25000],[8,2000],[7,100],[6,20],[5,5],[4,2]],
+      10:[[10,100000],[9,5000],[8,500],[7,50],[6,10],[5,2],[0,5]]
+    }
+  },
+  WV: {
+    name: 'West Virginia',
+    games: {
+      1:[[1,2]],
+      2:[[2,10]],
+      3:[[3,25],[2,2]],
+      4:[[4,50],[3,5],[2,1]],
+      5:[[5,400],[4,15],[3,2]],
+      6:[[6,1500],[5,50],[4,5],[3,1]],
+      7:[[7,5000],[6,125],[5,15],[4,2],[3,1]],
+      8:[[8,10000],[7,500],[6,50],[5,10],[4,2]],
+      9:[[9,25000],[8,2500],[7,200],[6,25],[5,4],[4,1]],
+      10:[[10,100000],[9,4000],[8,400],[7,50],[6,10],[5,2],[0,5]]
+    }
+  }
+};
+
+const sigmaMap = {500:'≈$0.088',1000:'≈$0.062',2500:'≈$0.039',5000:'≈$0.028'};
+
+let STATE = 'VA';
+let SPOT = 3;
+let TRIALS = 1000;
+const DURATION_MS = 30000;
+let chart, animFrame, simRunning = false;
+let results=[], startTime=null, lastIdx=-1, lastAboveZero=-1, runningTotal=0;
+
+function C(n,k) {
+  if(k>n||k<0) return 0; if(k===0||k===n) return 1;
+  let r=1; for(let i=0;i<k;i++) r=r*(n-i)/(i+1); return Math.round(r);
+}
+function prob(s,m) { return C(s,m)*C(80-s,20-m)/C(80,20); }
+
+function calcEV(spot, payouts) {
+  let e=-1;
+  for(const [m,prize] of payouts) e+=prob(spot,m)*prize;
+  return e;
+}
+
+function getPayouts() { return STATES[STATE].games[SPOT]; }
+function getEV() { return calcEV(SPOT, getPayouts()); }
+
+function playKeno() {
+  const balls=Array.from({length:80},(_,i)=>i+1);
+  for(let i=balls.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[balls[i],balls[j]]=[balls[j],balls[i]];}
+  const drawn=new Set(balls.slice(0,20));
+  const picks=new Set();
+  while(picks.size<SPOT){picks.add(Math.floor(Math.random()*80)+1);}
+  let matches=0;
+  for(const p of picks) if(drawn.has(p)) matches++;
+  for(const [m,prize] of getPayouts()) if(matches===m) return prize-1;
+  return -1;
+}
+
+function buildResults() {
+  const res=[]; for(let i=0;i<TRIALS;i++) res.push(playKeno()); return res;
+}
+
+function buildSpotButtons() {
+  const grid=document.getElementById('spot-grid');
+  const available=Object.keys(STATES[STATE].games).map(Number).sort((a,b)=>a-b);
+  grid.innerHTML='';
+  // if current SPOT not available in this state, pick first available
+  if(!available.includes(SPOT)) SPOT=available[0];
+  for(const s of available) {
+    const btn=document.createElement('button');
+    btn.className='spot-btn'+(s===SPOT?' active':'');
+    btn.textContent=s;
+    btn.onclick=()=>setSpot(s,btn);
+    grid.appendChild(btn);
+  }
+}
+
+function updatePayoutTable() {
+  const payouts=getPayouts();
+  const ev=getEV();
+  document.getElementById('payout-title').textContent=STATES[STATE].name+' · '+SPOT+'-Spot Payouts';
+  document.getElementById('ev-label').textContent='−$'+Math.abs(ev).toFixed(3);
+  const rows=payouts.map(([m,prize])=>{
+    const net=prize-1; const sign=net>=0?'+':''; const cls=net>=0?'win':'lose';
+    return `<div class="payout-row"><span class="payout-match">Match ${m}</span><span class="payout-prize ${cls}">${sign}$${net} &nbsp;<span style="color:#4a4a50;font-weight:400">(pays $${prize})</span></span></div>`;
+  });
+  rows.push(`<div class="payout-row"><span class="payout-match" style="color:#6b6a65">No prize</span><span class="payout-prize lose">−$1</span></div>`);
+  document.getElementById('payout-rows').innerHTML=rows.join('');
+}
+
+function makeChart() {
+  if(chart){chart.destroy();chart=null;}
+  const ev=getEV();
+  const ctx=document.getElementById('kenoChart');
+  chart=new Chart(ctx,{
+    type:'line',
+    data:{labels:[],datasets:[
+      {label:'Avg',data:[],borderColor:'#378ADD',borderWidth:2,pointRadius:0,tension:0.2,yAxisID:'y',order:1},
+      {label:'EV',data:Array.from({length:TRIALS},()=>ev),borderColor:'#34c97e',borderDash:[6,4],borderWidth:1.5,pointRadius:0,tension:0,yAxisID:'y',order:2},
+      {label:'Zero',data:Array.from({length:TRIALS},()=>0),borderColor:'#c49a2a',borderDash:[6,4],borderWidth:1.5,pointRadius:0,tension:0,yAxisID:'y',order:3}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{color:'#4a4a50',maxTicksLimit:7,font:{size:9}},grid:{color:'rgba(255,255,255,0.05)'}},
+        y:{ticks:{color:'#4a4a50',font:{size:9},callback:v=>(v>=0?'+':'')+`$${v.toFixed(2)}`},grid:{color:'rgba(255,255,255,0.05)'}}
+      }
+    }
+  });
+}
+
+function setColor(id,val) {
+  const el=document.getElementById(id);
+  el.className='stat-value'+(val>0?' positive':val<0?' negative':'');
+}
+
+function setState(s) {
+  if(simRunning) return;
+  STATE=s;
+  buildSpotButtons();
+  updatePayoutTable();
+  resetSim();
+}
+
+function setSpot(n,btn) {
+  if(simRunning) return;
+  SPOT=n;
+  document.querySelectorAll('.spot-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  updatePayoutTable();
+  resetSim();
+}
+
+function setTrials(n,btn) {
+  if(simRunning) return;
+  TRIALS=n;
+  document.querySelectorAll('.trial-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('sigma-label').textContent='σ '+sigmaMap[n];
+  resetSim();
+}
+
+function tick(ts) {
+  if(!startTime) startTime=ts;
+  const elapsed=ts-startTime;
+  const targetIdx=Math.min(Math.floor((elapsed/DURATION_MS)*TRIALS),TRIALS-1);
+  if(targetIdx>lastIdx) {
+    for(let i=lastIdx+1;i<=targetIdx;i++){
+      runningTotal+=results[i];
+      const avg=runningTotal/(i+1);
+      chart.data.labels.push(i+1);
+      chart.data.datasets[0].data.push(avg);
+      if(avg>0) lastAboveZero=i+1;
+    }
+    chart.update('none');
+    lastIdx=targetIdx;
+    const avg=runningTotal/(lastIdx+1);
+    const lastVal=results[lastIdx];
+    document.getElementById('stat-trial').textContent=(lastIdx+1).toLocaleString();
+    document.getElementById('stat-total').textContent=(runningTotal>=0?'+':'')+`$${runningTotal}`;
+    setColor('stat-total',runningTotal);
+    document.getElementById('stat-avg').textContent=(avg>=0?'+':'')+`$${avg.toFixed(2)}`;
+    setColor('stat-avg',avg);
+    document.getElementById('stat-last').textContent=(lastVal>0?'+':'')+`$${lastVal}`;
+    setColor('stat-last',lastVal);
+    const g=document.getElementById('stat-green');
+    if(lastAboveZero>0){g.textContent=`#${lastAboveZero.toLocaleString()}`;g.className='stat-value positive';}
+    else{g.textContent='Never';g.className='stat-value negative';}
+  }
+  if(elapsed<DURATION_MS&&lastIdx<TRIALS-1){animFrame=requestAnimationFrame(tick);}
+  else{simRunning=false;document.getElementById('btn-start').textContent='▶ Start';document.getElementById('btn-start').disabled=false;}
+}
+
+function startSim() {
+  if(simRunning) return;
+  if(lastIdx>=TRIALS-1) resetSim();
+  simRunning=true;
+  document.getElementById('btn-start').disabled=true;
+  document.getElementById('btn-start').textContent='Running…';
+  if(results.length===0) results=buildResults();
+  if(!chart) makeChart();
+  startTime=null; animFrame=requestAnimationFrame(tick);
+}
+
+function resetSim() {
+  if(animFrame) cancelAnimationFrame(animFrame);
+  simRunning=false;lastIdx=-1;startTime=null;results=[];lastAboveZero=-1;runningTotal=0;
+  makeChart();
+  document.getElementById('stat-trial').textContent='0';
+  ['stat-total','stat-avg','stat-last','stat-green'].forEach(id=>{
+    const el=document.getElementById(id);
+    el.className='stat-value';
+    el.textContent=id==='stat-avg'?'$0.00':id==='stat-total'?'$0':'—';
+  });
+  document.getElementById('btn-start').disabled=false;
+  document.getElementById('btn-start').textContent='▶ Start';
+}
+
+// Init
+buildSpotButtons();
+updatePayoutTable();
+makeChart();
+</script>
+</body>
+</html>
