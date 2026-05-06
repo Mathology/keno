@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VA Lottery Keno Simulator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+    background: #0f1117;
+    color: #e8e6e0;
+    min-height: 100vh;
+    padding: 16px;
+  }
+  h1 { font-size: 17px; font-weight: 600; color: #e8e6e0; margin-bottom: 2px; }
+  .subtitle { font-size: 12px; color: #6b6a65; margin-bottom: 14px; }
+
+  .section-label {
+    font-size: 10px; color: #6b6a65; text-transform: uppercase;
+    letter-spacing: 0.5px; margin-bottom: 6px;
+  }
+
+  /* Spot selector */
+  .spot-grid {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 5px;
+    margin-bottom: 14px;
+  }
+  .spot-btn {
+    padding: 8px 0;
+    border-radius: 8px;
+    border: 0.5px solid #2e2f38;
+    background: #1c1e26;
+    color: #e8e6e0;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: center;
+  }
+  .spot-btn.active { border: 2px solid #378ADD; color: #378ADD; }
+
+  /* Trial selector */
+  .trial-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 12px; flex-wrap: wrap;
+  }
+  .trial-btns { display: flex; gap: 5px; }
+  .trial-btn {
+    padding: 5px 11px; border-radius: 8px;
+    border: 0.5px solid #2e2f38; background: #1c1e26;
+    color: #e8e6e0; font-size: 12px; font-weight: 500; cursor: pointer;
+  }
+  .trial-btn.active { border: 2px solid #378ADD; color: #378ADD; }
+  .sigma { font-size: 11px; color: #6b6a65; }
+
+  /* Stats */
+  .stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 7px; margin-bottom: 7px;
+  }
+  .stats-bottom {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7px; margin-bottom: 12px;
+  }
+  .stat-card {
+    background: #1c1e26; border-radius: 10px;
+    padding: 9px 11px; border: 0.5px solid #2e2f38;
+  }
+  .stat-label {
+    font-size: 10px; color: #6b6a65; margin-bottom: 3px;
+    text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  .stat-value {
+    font-size: 18px; font-weight: 600; color: #e8e6e0;
+    font-variant-numeric: tabular-nums;
+  }
+  .positive { color: #34c97e !important; }
+  .negative { color: #e05252 !important; }
+
+  /* EV badge */
+  .ev-badge {
+    display: inline-block; font-size: 11px;
+    background: #1c1e26; border: 0.5px solid #2e2f38;
+    border-radius: 6px; padding: 3px 8px; color: #6b6a65;
+    margin-left: 6px;
+  }
+  .ev-badge span { color: #e05252; font-weight: 600; }
+
+  /* Buttons */
+  .buttons { display: flex; gap: 10px; margin-bottom: 12px; }
+  .buttons button {
+    flex: 1; padding: 12px; border-radius: 10px; border: none;
+    font-size: 15px; font-weight: 600; cursor: pointer; transition: opacity 0.15s;
+  }
+  .buttons button:active { opacity: 0.7; }
+  #btn-start { background: #378ADD; color: #fff; }
+  #btn-start:disabled { background: #243a52; color: #4a6a88; }
+  #btn-reset { background: #1c1e26; color: #e8e6e0; border: 0.5px solid #2e2f38 !important; }
+
+  /* Chart */
+  .chart-wrap {
+    position: relative; width: 100%; height: 220px;
+    background: #1c1e26; border-radius: 12px;
+    border: 0.5px solid #2e2f38; padding: 10px; margin-bottom: 10px;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex; flex-direction: column; gap: 4px;
+    font-size: 11px; color: #6b6a65; margin-bottom: 10px;
+  }
+  .legend-row { display: flex; align-items: center; gap: 6px; }
+  .legend-line { width: 20px; height: 2px; flex-shrink: 0; }
+  .legend-line.solid { background: #378ADD; }
+  .legend-line.dashed-green {
+    background: repeating-linear-gradient(to right,#34c97e 0,#34c97e 5px,transparent 5px,transparent 9px);
+  }
+  .legend-line.dashed-amber {
+    background: repeating-linear-gradient(to right,#c49a2a 0,#c49a2a 5px,transparent 5px,transparent 9px);
+  }
+
+  /* Payout table */
+  .payout-wrap {
+    background: #1c1e26; border-radius: 10px;
+    border: 0.5px solid #2e2f38; padding: 10px 12px;
+  }
+  .payout-title { font-size: 10px; color: #6b6a65; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 7px; }
+  .payout-row {
+    display: flex; justify-content: space-between;
+    font-size: 12px; padding: 3px 0;
+    border-bottom: 0.5px solid #2e2f38;
+  }
+  .payout-row:last-child { border-bottom: none; }
+  .payout-match { color: #6b6a65; }
+  .payout-prize { font-weight: 600; }
+  .payout-prize.win { color: #34c97e; }
+  .payout-prize.lose { color: #e05252; }
+</style>
+</head>
+<body>
+
+<h1>VA Lottery Keno Simulator</h1>
+<p class="subtitle">80 balls · 20 drawn · $1 bet · animates in 30 seconds</p>
+
+<div class="section-label">Spot game</div>
+<div class="spot-grid" id="spot-grid">
+  <button class="spot-btn" onclick="setSpot(1,this)">1</button>
+  <button class="spot-btn" onclick="setSpot(2,this)">2</button>
+  <button class="spot-btn active" onclick="setSpot(3,this)">3</button>
+  <button class="spot-btn" onclick="setSpot(4,this)">4</button>
+  <button class="spot-btn" onclick="setSpot(5,this)">5</button>
+  <button class="spot-btn" onclick="setSpot(6,this)">6</button>
+  <button class="spot-btn" onclick="setSpot(7,this)">7</button>
+  <button class="spot-btn" onclick="setSpot(8,this)">8</button>
+  <button class="spot-btn" onclick="setSpot(9,this)">9</button>
+  <button class="spot-btn" onclick="setSpot(10,this)">10</button>
+</div>
+
+<div class="trial-row">
+  <span class="section-label" style="margin:0;">Trials:</span>
+  <div class="trial-btns">
+    <button class="trial-btn" onclick="setTrials(500,this)">500</button>
+    <button class="trial-btn active" onclick="setTrials(1000,this)">1,000</button>
+    <button class="trial-btn" onclick="setTrials(2500,this)">2,500</button>
+    <button class="trial-btn" onclick="setTrials(5000,this)">5,000</button>
+  </div>
+  <span class="sigma" id="sigma-label">σ = $0.062</span>
+  <span class="ev-badge">E(X) = <span id="ev-label">−$0.306</span></span>
+</div>
+
+<div class="stats">
+  <div class="stat-card">
+    <div class="stat-label">Trial</div>
+    <div class="stat-value" id="stat-trial">0</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Running total</div>
+    <div class="stat-value" id="stat-total">$0</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Last result</div>
+    <div class="stat-value" id="stat-last">—</div>
+  </div>
+</div>
+<div class="stats-bottom">
+  <div class="stat-card">
+    <div class="stat-label">Avg win/loss</div>
+    <div class="stat-value" id="stat-avg">$0.00</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Last above $0</div>
+    <div class="stat-value" id="stat-green">—</div>
+  </div>
+</div>
+
+<div class="buttons">
+  <button id="btn-start" onclick="startSim()">▶ Start</button>
+  <button id="btn-reset" onclick="resetSim()">↺ Reset</button>
+</div>
+
+<div class="chart-wrap">
+  <canvas id="kenoChart" role="img" aria-label="Keno simulation average win/loss over selected trials"></canvas>
+</div>
+
+<div class="legend">
+  <div class="legend-row"><span class="legend-line solid"></span> Average win/loss per trial</div>
+  <div class="legend-row"><span class="legend-line dashed-green"></span> Expected value</div>
+  <div class="legend-row"><span class="legend-line dashed-amber"></span> Break-even ($0.00)</div>
+</div>
+
+<div class="payout-wrap">
+  <div class="payout-title" id="payout-title">3-Spot payouts</div>
+  <div id="payout-rows"></div>
+</div>
+
+<script>
+// VA Keno payout tables: {match, prize} — prize is total payout (including $1 stake)
+// Net = prize - 1. If no prize, net = -1.
+const GAMES = {
+  1: {payouts:[{m:1,prize:3}], ev:-0.2500},
+  2: {payouts:[{m:2,prize:12}], ev:-0.2785},
+  3: {payouts:[{m:3,prize:30},{m:2,prize:2}], ev:-0.3062},
+  4: {payouts:[{m:4,prize:100},{m:3,prize:5},{m:2,prize:1}], ev:-0.2648},
+  5: {payouts:[{m:5,prize:450},{m:4,prize:20},{m:3,prize:2}], ev:-0.3001},
+  6: {payouts:[{m:6,prize:1000},{m:5,prize:50},{m:4,prize:5},{m:3,prize:1},{m:0,prize:1}], ev:-0.2771},
+  7: {payouts:[{m:7,prize:2500},{m:6,prize:100},{m:5,prize:15},{m:4,prize:3},{m:3,prize:1},{m:0,prize:1}], ev:-0.2831},
+  8: {payouts:[{m:8,prize:10000},{m:7,prize:250},{m:6,prize:50},{m:5,prize:15},{m:4,prize:2},{m:0,prize:1}], ev:-0.2723},
+  9: {payouts:[{m:9,prize:50000},{m:8,prize:2000},{m:7,prize:100},{m:6,prize:20},{m:5,prize:5},{m:4,prize:2},{m:0,prize:1}], ev:-0.2701},
+  10:{payouts:[{m:10,prize:100000},{m:9,prize:5000},{m:8,prize:500},{m:7,prize:50},{m:6,prize:10},{m:5,prize:3},{m:4,prize:1},{m:0,prize:2}], ev:-0.3019},
+};
+
+const sigmaMap = {500:'$0.088',1000:'$0.062',2500:'$0.039',5000:'$0.028'};
+
+let SPOT = 3;
+let TRIALS = 1000;
+const DURATION_MS = 30000;
+let chart, animFrame, simRunning = false;
+let results=[], startTime=null, lastIdx=-1, lastAboveZero=-1, runningTotal=0;
+
+function C(n,k) {
+  if(k>n||k<0) return 0;
+  if(k===0||k===n) return 1;
+  let r=1;
+  for(let i=0;i<k;i++) r=r*(n-i)/(i+1);
+  return Math.round(r);
+}
+
+function playKeno() {
+  // Shuffle and draw 20 from 80
+  const balls = Array.from({length:80},(_,i)=>i+1);
+  for(let i=balls.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[balls[i],balls[j]]=[balls[j],balls[i]];}
+  const drawn = new Set(balls.slice(0,20));
+  // Pick SPOT random numbers
+  const picks = new Set();
+  while(picks.size<SPOT){picks.add(Math.floor(Math.random()*80)+1);}
+  let matches=0;
+  for(const p of picks) if(drawn.has(p)) matches++;
+
+  // Find payout
+  const payouts = GAMES[SPOT].payouts;
+  for(const {m,prize} of payouts) {
+    if(matches===m) return prize-1; // net
+  }
+  return -1; // no prize
+}
+
+function buildResults() {
+  const res=[];
+  for(let i=0;i<TRIALS;i++) res.push(playKeno());
+  return res;
+}
+
+function makeChart() {
+  if(chart){chart.destroy();chart=null;}
+  const ev = GAMES[SPOT].ev;
+  const ctx = document.getElementById('kenoChart');
+  chart = new Chart(ctx,{
+    type:'line',
+    data:{
+      labels:[],
+      datasets:[
+        {label:'Avg',data:[],borderColor:'#378ADD',borderWidth:2,pointRadius:0,tension:0.2,yAxisID:'y',order:1},
+        {label:'EV',data:Array.from({length:TRIALS},()=>ev),borderColor:'#34c97e',borderDash:[6,4],borderWidth:1.5,pointRadius:0,tension:0,yAxisID:'y',order:2},
+        {label:'Zero',data:Array.from({length:TRIALS},()=>0),borderColor:'#c49a2a',borderDash:[6,4],borderWidth:1.5,pointRadius:0,tension:0,yAxisID:'y',order:3}
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false, animation:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{color:'#4a4a50',maxTicksLimit:7,font:{size:9}},grid:{color:'rgba(255,255,255,0.05)'}},
+        y:{ticks:{color:'#4a4a50',font:{size:9},callback:v=>(v>=0?'+':'')+`$${v.toFixed(2)}`},grid:{color:'rgba(255,255,255,0.05)'}}
+      }
+    }
+  });
+}
+
+function updatePayoutTable() {
+  const game = GAMES[SPOT];
+  document.getElementById('payout-title').textContent = SPOT+'-Spot payouts';
+  document.getElementById('ev-label').textContent = '−$'+Math.abs(game.ev).toFixed(3);
+  const rows = game.payouts.map(({m,prize})=>{
+    const net = prize-1;
+    const sign = net>=0?'+':'';
+    const cls = net>=0?'win':'lose';
+    return `<div class="payout-row">
+      <span class="payout-match">Match ${m}</span>
+      <span class="payout-prize ${cls}">${sign}$${net} (pays $${prize})</span>
+    </div>`;
+  });
+  rows.push(`<div class="payout-row"><span class="payout-match">No match</span><span class="payout-prize lose">−$1</span></div>`);
+  document.getElementById('payout-rows').innerHTML = rows.join('');
+}
+
+function setSpot(n, btn) {
+  if(simRunning) return;
+  SPOT = n;
+  document.querySelectorAll('.spot-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  updatePayoutTable();
+  resetSim();
+}
+
+function setTrials(n, btn) {
+  if(simRunning) return;
+  TRIALS = n;
+  document.querySelectorAll('.trial-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('sigma-label').textContent = 'σ = '+sigmaMap[n];
+  resetSim();
+}
+
+function setColor(id, val) {
+  const el=document.getElementById(id);
+  el.className='stat-value'+(val>0?' positive':val<0?' negative':'');
+}
+
+function tick(ts) {
+  if(!startTime) startTime=ts;
+  const elapsed=ts-startTime;
+  const targetIdx=Math.min(Math.floor((elapsed/DURATION_MS)*TRIALS),TRIALS-1);
+
+  if(targetIdx>lastIdx){
+    for(let i=lastIdx+1;i<=targetIdx;i++){
+      runningTotal+=results[i];
+      const avg=runningTotal/(i+1);
+      chart.data.labels.push(i+1);
+      chart.data.datasets[0].data.push(avg);
+      if(avg>0) lastAboveZero=i+1;
+    }
+    chart.update('none');
+    lastIdx=targetIdx;
+
+    const avg=runningTotal/(lastIdx+1);
+    const lastVal=results[lastIdx];
+
+    document.getElementById('stat-trial').textContent=(lastIdx+1).toLocaleString();
+    document.getElementById('stat-total').textContent=(runningTotal>=0?'+':'')+`$${runningTotal}`;
+    setColor('stat-total',runningTotal);
+    document.getElementById('stat-avg').textContent=(avg>=0?'+':'')+`$${avg.toFixed(2)}`;
+    setColor('stat-avg',avg);
+    document.getElementById('stat-last').textContent=(lastVal>0?'+':'')+`$${lastVal}`;
+    setColor('stat-last',lastVal);
+    const greenEl=document.getElementById('stat-green');
+    if(lastAboveZero>0){
+      greenEl.textContent=`#${lastAboveZero.toLocaleString()}`;
+      greenEl.className='stat-value positive';
+    } else {
+      greenEl.textContent='Never';
+      greenEl.className='stat-value negative';
+    }
+  }
+
+  if(elapsed<DURATION_MS&&lastIdx<TRIALS-1){
+    animFrame=requestAnimationFrame(tick);
+  } else {
+    simRunning=false;
+    document.getElementById('btn-start').textContent='▶ Start';
+    document.getElementById('btn-start').disabled=false;
+  }
+}
+
+function startSim() {
+  if(simRunning) return;
+  if(lastIdx>=TRIALS-1) resetSim();
+  simRunning=true;
+  document.getElementById('btn-start').disabled=true;
+  document.getElementById('btn-start').textContent='Running…';
+  if(results.length===0) results=buildResults();
+  if(!chart) makeChart();
+  startTime=null;
+  animFrame=requestAnimationFrame(tick);
+}
+
+function resetSim() {
+  if(animFrame) cancelAnimationFrame(animFrame);
+  simRunning=false;lastIdx=-1;startTime=null;results=[];lastAboveZero=-1;runningTotal=0;
+  makeChart();
+  document.getElementById('stat-trial').textContent='0';
+  ['stat-total','stat-avg','stat-last','stat-green'].forEach(id=>{
+    const el=document.getElementById(id);
+    el.className='stat-value';
+    el.textContent=id==='stat-avg'?'$0.00':id==='stat-total'?'$0':'—';
+  });
+  document.getElementById('btn-start').disabled=false;
+  document.getElementById('btn-start').textContent='▶ Start';
+}
+
+// Init
+updatePayoutTable();
+makeChart();
+</script>
+</body>
+</html>
